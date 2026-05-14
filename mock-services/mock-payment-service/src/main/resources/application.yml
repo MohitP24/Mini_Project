@@ -1,0 +1,10 @@
+server:
+  port: ${MOCK_PAYMENT_PORT:9001}
+spring:
+  application:
+    name: mock-payment-service
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

@@ -1,0 +1,24 @@
+server:
+  port: ${FORENSICS_API_PORT:8082}
+
+spring:
+  application:
+    name: sentinel-forensics-api
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:sentinel}
+    username: ${POSTGRES_USER:sentinel_app} 
+    password: ${POSTGRES_PASSWORD:sentinel}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      minimum-idle: 1
+      maximum-pool-size: 5
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

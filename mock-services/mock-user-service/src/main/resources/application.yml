@@ -1,0 +1,10 @@
+server:
+  port: ${MOCK_USER_PORT:9002}
+spring:
+  application:
+    name: mock-user-service
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

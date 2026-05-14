@@ -1,0 +1,24 @@
+server:
+  port: ${ADMIN_API_PORT:8083}
+
+spring:
+  application:
+    name: sentinel-admin-api
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:sentinel}
+    username: ${POSTGRES_USER:sentinel_app}
+    password: ${POSTGRES_PASSWORD:sentinel}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      minimum-idle: 2
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

@@ -1,0 +1,10 @@
+server:
+  port: ${MOCK_ADMIN_PORT:9003}
+spring:
+  application:
+    name: mock-admin-service
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

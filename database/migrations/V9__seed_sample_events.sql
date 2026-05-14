@@ -1,0 +1,10 @@
+-- Flyway: V9__seed_sample_events.sql
+INSERT INTO events (event_id, timestamp_ns, event_type, session_id, user_id, roles, endpoint, http_method, source_ip, user_agent, risk_score, decision, event_hash, gateway_version)
+VALUES 
+(gen_random_uuid(), (EXTRACT(EPOCH FROM NOW() - INTERVAL '10 minutes') * 1000000000)::BIGINT, 'REQUEST_RECEIVED', gen_random_uuid(), 'user_1', '["ROLE_USER"]', '/api/payments/charge', 'POST', '192.168.1.100', 'Mozilla/5.0', 0.1, 'ALLOW', 'hash1', '1.0.0'),
+(gen_random_uuid(), (EXTRACT(EPOCH FROM NOW() - INTERVAL '9 minutes') * 1000000000)::BIGINT, 'REQUEST_RECEIVED', gen_random_uuid(), 'user_2', '["ROLE_USER"]', '/api/users/profile', 'GET', '192.168.1.101', 'Mozilla/5.0', 0.05, 'ALLOW', 'hash2', '1.0.0'),
+(gen_random_uuid(), (EXTRACT(EPOCH FROM NOW() - INTERVAL '8 minutes') * 1000000000)::BIGINT, 'REQUEST_RECEIVED', gen_random_uuid(), 'attacker_1', '["ROLE_ANONYMOUS"]', '/api/admin/settings', 'POST', '10.0.0.5', 'curl/7.68.0', 0.95, 'DENY', 'hash3', '1.0.0'),
+(gen_random_uuid(), (EXTRACT(EPOCH FROM NOW() - INTERVAL '7 minutes') * 1000000000)::BIGINT, 'REQUEST_RECEIVED', gen_random_uuid(), 'user_3', '["ROLE_USER"]', '/api/payments/charge', 'POST', '192.168.1.102', 'Mozilla/5.0', 0.2, 'ALLOW', 'hash4', '1.0.0'),
+(gen_random_uuid(), (EXTRACT(EPOCH FROM NOW() - INTERVAL '6 minutes') * 1000000000)::BIGINT, 'REQUEST_RECEIVED', gen_random_uuid(), 'user_4', '["ROLE_USER"]', '/api/users/profile', 'GET', '192.168.1.103', 'Mozilla/5.0', 0.15, 'ALLOW', 'hash5', '1.0.0'),
+(gen_random_uuid(), (EXTRACT(EPOCH FROM NOW() - INTERVAL '5 minutes') * 1000000000)::BIGINT, 'REQUEST_RECEIVED', gen_random_uuid(), 'attacker_2', '["ROLE_ANONYMOUS"]', '/api/payments/charge', 'POST', '45.12.34.56', 'python-requests/2.25.1', 0.85, 'DENY', 'hash6', '1.0.0'),
+(gen_random_uuid(), (EXTRACT(EPOCH FROM NOW() - INTERVAL '4 minutes') * 1000000000)::BIGINT, 'REQUEST_RECEIVED', gen_random_uuid(), 'user_5', '["ROLE_ADMIN"]', '/api/admin/policies', 'GET', '192.168.1.50', 'Mozilla/5.0', 0.0, 'ALLOW', 'hash7', '1.0.0');

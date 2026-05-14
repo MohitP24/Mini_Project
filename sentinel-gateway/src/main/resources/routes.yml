@@ -1,0 +1,16 @@
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: mock-payment-service
+          uri: ${MOCK_PAYMENT_URL:http://localhost:9001}
+          predicates:
+            - Path=/api/payments/**
+        - id: mock-user-service
+          uri: ${MOCK_USER_URL:http://localhost:9002}
+          predicates:
+            - Path=/api/users/**
+        - id: mock-admin-service
+          uri: ${MOCK_ADMIN_URL:http://localhost:9003}
+          predicates:
+            - Path=/api/admin/**

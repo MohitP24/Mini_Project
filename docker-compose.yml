@@ -1,0 +1,133 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15.6-alpine
+    container_name: sentinel-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  flyway:
+    image: flyway/flyway:10.10.0-alpine
+    container_name: sentinel-flyway
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./database/migrations:/flyway/sql
+    command: >
+      -url=jdbc:postgresql://postgres:5432/${POSTGRES_DB} 
+      -user=${POSTGRES_USER} 
+      -password=${POSTGRES_PASSWORD} 
+      -placeholders.POSTGRES_PASSWORD=${POSTGRES_PASSWORD} 
+      -placeholders.EVENT_WRITER_PASSWORD=${EVENT_WRITER_PASSWORD:-writer_pass} 
+      -placeholders.SENTINEL_READER_PASSWORD=${SENTINEL_READER_PASSWORD:-reader_pass} 
+      migrate
+
+  mock-payment-service:
+    build:
+      context: .
+      dockerfile: docker/mock-payment.Dockerfile
+    container_name: mock-payment
+    ports:
+      - "${MOCK_PAYMENT_PORT:-9001}:9001"
+    environment:
+      - MOCK_PAYMENT_PORT=${MOCK_PAYMENT_PORT:-9001}
+
+  mock-user-service:
+    build:
+      context: .
+      dockerfile: docker/mock-user.Dockerfile
+    container_name: mock-user
+    ports:
+      - "${MOCK_USER_PORT:-9002}:9002"
+    environment:
+      - MOCK_USER_PORT=${MOCK_USER_PORT:-9002}
+
+  mock-admin-service:
+    build:
+      context: .
+      dockerfile: docker/mock-admin.Dockerfile
+    container_name: mock-admin
+    ports:
+      - "${MOCK_ADMIN_PORT:-9003}:9003"
+    environment:
+      - MOCK_ADMIN_PORT=${MOCK_ADMIN_PORT:-9003}
+
+  sentinel-gateway:
+    build:
+      context: .
+      dockerfile: docker/gateway.Dockerfile
+    container_name: sentinel-gateway
+    depends_on:
+      postgres:
+        condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    volumes:
+      - ./secrets:/run/secrets:ro
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - MOCK_PAYMENT_URL=http://mock-payment-service:9001
+      - MOCK_USER_URL=http://mock-user-service:9002
+      - MOCK_ADMIN_URL=http://mock-admin-service:9003
+      - SENTINEL_JWT_PRIVATE_KEY_PATH=/run/secrets/sentinel_private_key.pem
+      - SENTINEL_JWT_PUBLIC_KEY_PATH=/run/secrets/sentinel_public_key.pem
+
+  sentinel-admin-api:
+    build:
+      context: .
+      dockerfile: docker/admin.Dockerfile
+    container_name: sentinel-admin-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
+    ports:
+      - "${ADMIN_API_PORT:-8083}:8083"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+
+  sentinel-forensics-api:
+    build:
+      context: .
+      dockerfile: docker/forensics.Dockerfile
+    container_name: sentinel-forensics-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
+    ports:
+      - "${FORENSICS_API_PORT:-8082}:8082"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+
+volumes:
+  postgres_data:
