@@ -47,8 +47,10 @@ public class PolicyEnforcementFilter implements GlobalFilter, Ordered {
         context.setSessionId(exchange.getAttribute(SessionAssignFilter.SESSION_ID_ATTR));
         context.setEndpoint(exchange.getRequest().getURI().getPath());
         context.setHttpMethod(exchange.getRequest().getMethod().name());
-        context.setSourceIp(exchange.getRequest().getRemoteAddress() != null ? 
-                exchange.getRequest().getRemoteAddress().getAddress().getHostAddress() : "0.0.0.0");
+        String forwardedFor = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For");
+        context.setSourceIp(forwardedFor != null ? forwardedFor : 
+            (exchange.getRequest().getRemoteAddress() != null ? 
+                exchange.getRequest().getRemoteAddress().getAddress().getHostAddress() : "0.0.0.0"));
         context.setUserAgent(exchange.getRequest().getHeaders().getFirst("User-Agent"));
         context.setJwtClaims(claims);
         

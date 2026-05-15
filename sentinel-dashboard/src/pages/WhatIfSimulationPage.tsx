@@ -61,6 +61,7 @@ export const WhatIfSimulationPage = () => {
 
   const simulateMutation = useMutation({
     mutationFn: async () => {
+      // Axios will append this to the baseURL '/api/admin'
       const resp = await adminClient.post('/policies/simulate', { 
         conditions, 
         scope 
@@ -70,18 +71,34 @@ export const WhatIfSimulationPage = () => {
     onSuccess: (data) => {
       setReplayResult(data);
       setDisplayedSteps([]);
+      
+      // Defensively check if steps exist to prevent TypeError crashes
+      const stepsToReplay = data?.steps || [];
+      
+      if (stepsToReplay.length === 0) {
+        setIsReplaying(false);
+        toast.error('Simulation completed, but no steps were returned.');
+        return;
+      }
+
       setIsReplaying(true);
       
       // Progressively add steps to the UI for "storyline" feel
-      data.steps.forEach((step: any, index: number) => {
+      stepsToReplay.forEach((step: any, index: number) => {
         setTimeout(() => {
           setDisplayedSteps(prev => [...prev, step]);
-          if (index === data.steps.length - 1) {
+          if (index === stepsToReplay.length - 1) {
             setIsReplaying(false);
             toast.success('Simulation Analysis Complete');
           }
         }, index * 400); // 400ms delay between steps
       });
+    },
+    onError: (error: any) => {
+      // Prevent silent UI failures by exposing the network error
+      console.error('Simulation Error:', error);
+      setIsReplaying(false);
+      toast.error(error?.response?.data?.message || 'Failed to connect to Simulation API');
     }
   });
 
