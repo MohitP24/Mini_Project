@@ -104,7 +104,20 @@ public class ForensicsService {
             if (sessionEvents.isEmpty()) return null;
             
             EventRecord last = sessionEvents.get(sessionEvents.size() - 1);
-            float avgRisk = (float) sessionEvents.stream().mapToDouble(EventRecord::getRiskScore).average().orElse(0.0);
+            float avgRisk = (float) sessionEvents.stream()
+                .filter(e -> e.getRiskScore() != null)
+                .mapToDouble(EventRecord::getRiskScore)
+                .average().orElse(0.0);
+            
+            List<String> ips = sessionEvents.stream()
+                .map(EventRecord::getSourceIp)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+            
+            long violations = sessionEvents.stream()
+                .filter(e -> "DENY".equals(e.getDecision()))
+                .count();
             
             return new SessionSummary(
                 sid,
@@ -112,7 +125,9 @@ public class ForensicsService {
                 sessionEvents.size(),
                 avgRisk,
                 last.getCreatedAt(),
-                last.getDecision()
+                last.getDecision(),
+                ips,
+                (int) violations
             );
         }).filter(Objects::nonNull).collect(Collectors.toList());
     }
@@ -121,7 +136,10 @@ public class ForensicsService {
         long totalRequests = eventRepository.count();
         long securityBlocks = eventRepository.findAll().stream().filter(e -> "DENY".equals(e.getDecision())).count();
         long activeSessions = eventRepository.findRecentSessionIds(PageRequest.of(0, 1000)).size();
-        double avgRisk = eventRepository.findAll().stream().mapToDouble(EventRecord::getRiskScore).average().orElse(0.0);
+        double avgRisk = eventRepository.findAll().stream()
+            .filter(e -> e.getRiskScore() != null)
+            .mapToDouble(EventRecord::getRiskScore)
+            .average().orElse(0.0);
 
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalRequests", totalRequests);
@@ -148,5 +166,5 @@ public class ForensicsService {
 
     public record VerificationResult(UUID eventId, boolean valid, String message) {}
     public record AuditReport(int totalEventsChecked, boolean chainValid, List<VerificationResult> tamperingDetails) {}
-    public record SessionSummary(UUID sessionId, String userId, int eventCount, float avgRiskScore, OffsetDateTime lastActivity, String lastDecision) {}
+    public record SessionSummary(UUID sessionId, String userId, int eventCount, float avgRiskScore, OffsetDateTime lastActivity, String lastDecision, List<String> associatedIps, int violationsCount) {}
 }

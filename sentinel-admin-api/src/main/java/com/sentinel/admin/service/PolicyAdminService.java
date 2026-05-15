@@ -25,8 +25,8 @@ public class PolicyAdminService {
         this.objectMapper = objectMapper;
     }
 
-    public List<PolicyRule> getAllActivePolicies() {
-        return repository.findByActiveTrueOrderByPriorityDesc();
+    public List<PolicyRule> getAllPolicies() {
+        return repository.findAll(org.springframework.data.domain.Sort.by("priority").descending());
     }
 
     public Optional<PolicyRule> getPolicy(String id) {
@@ -82,7 +82,7 @@ public class PolicyAdminService {
 
         // 2. Fetch REAL historical data from the events table
         String sql = "SELECT event_id, endpoint, source_ip, decision, roles, risk_score FROM events " +
-                    "WHERE CAST(source_ip AS text) LIKE ? OR endpoint LIKE ? " +
+                    "WHERE source_ip LIKE ? OR endpoint LIKE ? " +
                     "ORDER BY created_at DESC LIMIT 20";
         
         String searchPattern = "%" + (scope != null ? scope : "") + "%";

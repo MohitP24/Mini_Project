@@ -18,76 +18,281 @@ try {
   process.exit(1);
 }
 
-// Demo users to simulate
-const USERS = [
-  { id: 'user-bob', role: 'ROLE_USER', ip: '192.168.1.15' },
-  { id: 'admin-alice', role: 'ROLE_ADMIN', ip: '10.0.0.5' },
-  { id: 'guest-charlie', role: 'ROLE_GUEST', ip: '203.0.113.42' }, // External IP
-  { id: 'hacker-eve', role: 'ROLE_USER', ip: '198.51.100.7' } // Suspicious IP
+// ═══════════════════════════════════════════════════════
+// SCENARIO DEFINITIONS — Each maps to a real anomaly
+// the Sentinel Policy Engine evaluates
+// ═══════════════════════════════════════════════════════
+
+const SCENARIOS = [
+  // ── 1. NORMAL TRAFFIC (baseline) ──────────────────────
+  {
+    name: '✅ Normal User',
+    weight: 30,
+    user: { id: 'user-bob', roles: ['ROLE_USER'] },
+    ip: '192.168.1.15',
+    endpoints: ['/api/users/profile', '/api/payments/process'],
+    methods: ['GET', 'POST'],
+    anomaly: null,
+    tokenOptions: { valid: true },
+  },
+  {
+    name: '✅ Admin Workflow',
+    weight: 15,
+    user: { id: 'admin-alice', roles: ['ROLE_ADMIN', 'POLICY_ADMIN'] },
+    ip: '10.0.0.5',
+    endpoints: ['/api/admin/dashboard', '/api/users/profile', '/api/payments/process'],
+    methods: ['GET', 'POST'],
+    anomaly: null,
+    tokenOptions: { valid: true },
+  },
+
+  // ── 2. JWT ANOMALY — Missing token / expired / wrong issuer ──
+  {
+    name: '🔐 JWT: No Token',
+    weight: 8,
+    user: null,
+    ip: '203.0.113.42',
+    endpoints: ['/api/payments/process', '/api/admin/dashboard'],
+    methods: ['POST', 'GET'],
+    anomaly: 'jwt_missing',
+    tokenOptions: { skip: true },
+  },
+  {
+    name: '🔐 JWT: Expired Token',
+    weight: 5,
+    user: { id: 'expired-user', roles: ['ROLE_USER'] },
+    ip: '192.168.1.80',
+    endpoints: ['/api/users/profile', '/api/payments/process'],
+    methods: ['GET', 'POST'],
+    anomaly: 'jwt_expired',
+    tokenOptions: { valid: true, expiresIn: '-10s' },
+  },
+  {
+    name: '🔐 JWT: Wrong Issuer',
+    weight: 5,
+    user: { id: 'foreign-service', roles: ['ROLE_SERVICE'] },
+    ip: '172.16.5.99',
+    endpoints: ['/api/users/profile'],
+    methods: ['GET'],
+    anomaly: 'jwt_wrong_issuer',
+    tokenOptions: { valid: true, issuer: 'malicious-auth' },
+  },
+  {
+    name: '🔐 JWT: Empty Roles',
+    weight: 5,
+    user: { id: 'norole-dan', roles: [] },
+    ip: '10.0.0.20',
+    endpoints: ['/api/users/profile', '/api/admin/dashboard'],
+    methods: ['GET'],
+    anomaly: 'jwt_no_roles',
+    tokenOptions: { valid: true },
+  },
+
+  // ── 3. IP REPUTATION — Suspicious / blacklisted IPs ──
+  {
+    name: '🌐 IP: Known Bad Actor',
+    weight: 8,
+    user: { id: 'hacker-eve', roles: ['ROLE_USER'] },
+    ip: '198.51.100.7',
+    endpoints: ['/api/admin/dashboard', '/api/payments/process'],
+    methods: ['GET', 'POST'],
+    anomaly: 'ip_bad_reputation',
+    tokenOptions: { valid: true },
+  },
+  {
+    name: '🌐 IP: External Probe',
+    weight: 5,
+    user: { id: 'scanner-bot', roles: ['ROLE_USER'] },
+    ip: '45.33.32.156',
+    endpoints: ['/api/admin/dashboard', '/api/users/profile', '/api/payments/process'],
+    methods: ['GET', 'POST'],
+    anomaly: 'ip_external_scanner',
+    tokenOptions: { valid: true },
+  },
+  {
+    name: '🌐 IP: Tor Exit Node',
+    weight: 3,
+    user: { id: 'anon-tor', roles: ['ROLE_USER'] },
+    ip: '185.220.101.42',
+    endpoints: ['/api/payments/process'],
+    methods: ['POST'],
+    anomaly: 'ip_tor_exit',
+    tokenOptions: { valid: true },
+  },
+
+  // ── 4. ENDPOINT FREQUENCY — Burst / rapid-fire attacks ──
+  {
+    name: '⚡ Endpoint: Payment Flood',
+    weight: 5,
+    user: { id: 'fraud-frank', roles: ['ROLE_USER'] },
+    ip: '203.0.113.99',
+    endpoints: ['/api/payments/process'],
+    methods: ['POST'],
+    anomaly: 'endpoint_flood',
+    tokenOptions: { valid: true },
+    burstCount: 5,
+    burstDelay: 50,
+  },
+  {
+    name: '⚡ Endpoint: Admin Scrape',
+    weight: 3,
+    user: { id: 'scraper-sam', roles: ['ROLE_USER'] },
+    ip: '198.51.100.22',
+    endpoints: ['/api/admin/dashboard'],
+    methods: ['GET'],
+    anomaly: 'endpoint_scrape',
+    tokenOptions: { valid: true },
+    burstCount: 8,
+    burstDelay: 30,
+  },
+
+  // ── 5. ROLE-BASED ACCESS VIOLATIONS ───────────────────
+  {
+    name: '🚫 Role: Guest → Admin',
+    weight: 5,
+    user: { id: 'guest-charlie', roles: ['ROLE_GUEST'] },
+    ip: '203.0.113.42',
+    endpoints: ['/api/admin/dashboard'],
+    methods: ['GET'],
+    anomaly: 'role_escalation',
+    tokenOptions: { valid: true },
+  },
+  {
+    name: '🚫 Role: User → Payments',
+    weight: 3,
+    user: { id: 'sneaky-steve', roles: ['ROLE_VIEWER'] },
+    ip: '10.0.0.35',
+    endpoints: ['/api/payments/process'],
+    methods: ['POST'],
+    anomaly: 'role_unauthorized_payment',
+    tokenOptions: { valid: true },
+  },
 ];
 
-// Endpoints available in the gateway
-const ENDPOINTS = [
-  { path: '/api/payments/process', method: 'POST' },
-  { path: '/api/users/profile', method: 'GET' },
-  { path: '/api/admin/dashboard', method: 'GET' },
-];
+// ═══════════════════════════════════════════════════════
+// TOKEN GENERATION
+// ═══════════════════════════════════════════════════════
+
+function generateToken(user, options = {}) {
+  if (options.skip) return null;
+
+  const payload = {
+    sub: user.id,
+    roles: user.roles,
+  };
+
+  return jwt.sign(payload, privateKey, {
+    algorithm: 'RS256',
+    expiresIn: options.expiresIn || '1h',
+    issuer: options.issuer || 'sentinel-auth',
+    audience: 'sentinel-api',
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// WEIGHTED RANDOM SCENARIO PICKER
+// ═══════════════════════════════════════════════════════
+
+function pickScenario() {
+  const totalWeight = SCENARIOS.reduce((s, sc) => s + sc.weight, 0);
+  let r = Math.random() * totalWeight;
+  for (const sc of SCENARIOS) {
+    r -= sc.weight;
+    if (r <= 0) return sc;
+  }
+  return SCENARIOS[0];
+}
+
+// ═══════════════════════════════════════════════════════
+// REQUEST FIRING
+// ═══════════════════════════════════════════════════════
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-function generateToken(user) {
-  return jwt.sign(
-    { sub: user.id, roles: [user.role] },
-    privateKey,
-    { algorithm: 'RS256', expiresIn: '1h', issuer: 'sentinel-auth', audience: 'sentinel-api' }
-  );
-}
+async function fireSingleRequest(scenario) {
+  const endpoint = scenario.endpoints[Math.floor(Math.random() * scenario.endpoints.length)];
+  const method = scenario.methods[Math.floor(Math.random() * scenario.methods.length)];
 
-async function fireRequest() {
-  const user = USERS[Math.floor(Math.random() * USERS.length)];
-  const endpoint = ENDPOINTS[Math.floor(Math.random() * ENDPOINTS.length)];
-  const token = generateToken(user);
-
-  // 10% chance to send an unauthenticated request to trigger a denial
-  const sendWithoutToken = Math.random() < 0.1;
   const headers = {
-    'X-Forwarded-For': user.ip,
-    'User-Agent': 'Sentinel-Demo-Script/1.0',
-    'Content-Type': 'application/json'
+    'X-Forwarded-For': scenario.ip,
+    'User-Agent': `Sentinel-Demo/${scenario.anomaly || 'normal'}`,
+    'Content-Type': 'application/json',
   };
 
-  if (!sendWithoutToken) {
-    headers['Authorization'] = `Bearer ${token}`;
+  if (scenario.user && !scenario.tokenOptions.skip) {
+    const token = generateToken(scenario.user, scenario.tokenOptions);
+    if (token) headers['Authorization'] = `Bearer ${token}`;
   }
 
   try {
-    const res = await fetch(`${GATEWAY_URL}${endpoint.path}`, {
-      method: endpoint.method,
-      headers
-    });
-    
-    // Consume the body to prevent memory leaks
+    const res = await fetch(`${GATEWAY_URL}${endpoint}`, { method, headers });
     await res.text();
-    
-    const statusColor = res.status >= 200 && res.status < 300 ? '\x1b[32m' : '\x1b[31m';
-    console.log(`[${new Date().toLocaleTimeString()}] ${user.ip.padEnd(15)} | ${user.id.padEnd(15)} | ${endpoint.method} ${endpoint.path.padEnd(22)} | ${statusColor}${res.status}\x1b[0m`);
+
+    const statusColor =
+      res.status >= 200 && res.status < 300 ? '\x1b[32m' :
+      res.status === 401 ? '\x1b[33m' :
+      res.status === 403 ? '\x1b[31m' :
+      '\x1b[35m';
+
+    const decisionLabel =
+      res.status === 200 ? 'ALLOW' :
+      res.status === 401 ? 'UNAUTH' :
+      res.status === 403 ? 'DENY' :
+      `HTTP ${res.status}`;
+
+    console.log(
+      `[${new Date().toLocaleTimeString()}] ` +
+      `${scenario.ip.padEnd(18)}| ` +
+      `${(scenario.user?.id || 'NO_TOKEN').padEnd(18)}| ` +
+      `${method.padEnd(5)} ${endpoint.padEnd(25)}| ` +
+      `${statusColor}${decisionLabel.padEnd(8)}\x1b[0m | ` +
+      `${scenario.name}`
+    );
   } catch (error) {
-    console.log(`[${new Date().toLocaleTimeString()}] ${user.ip.padEnd(15)} | ERROR connecting to gateway: ${error.message}`);
+    console.log(`[${new Date().toLocaleTimeString()}] ${scenario.ip.padEnd(18)}| ERROR: ${error.message}`);
   }
 }
 
+async function fireScenario(scenario) {
+  if (scenario.burstCount) {
+    // Burst mode — simulate rapid-fire requests
+    for (let i = 0; i < scenario.burstCount; i++) {
+      await fireSingleRequest(scenario);
+      await sleep(scenario.burstDelay || 50);
+    }
+  } else {
+    await fireSingleRequest(scenario);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// MAIN LOOP
+// ═══════════════════════════════════════════════════════
+
 async function runDemo() {
-  console.log("=========================================");
-  console.log("🛡️  Sentinel Live Traffic Generator 🛡️");
-  console.log("=========================================");
-  console.log("Sending varied API traffic to Gateway (http://localhost:8080).");
-  console.log("Use the Sentinel Dashboard 'Session Explorer' and 'Forensics' to view results.");
-  console.log("Press Ctrl+C to stop.\n");
+  console.log('');
+  console.log('\x1b[36m╔══════════════════════════════════════════════════════════════════╗\x1b[0m');
+  console.log('\x1b[36m║     🛡️  SENTINEL — Advanced Security Traffic Simulator  🛡️      ║\x1b[0m');
+  console.log('\x1b[36m╚══════════════════════════════════════════════════════════════════╝\x1b[0m');
+  console.log('');
+  console.log('\x1b[90m  Anomaly Categories Covered:\x1b[0m');
+  console.log('  ✅ Normal baseline traffic  (weighted 45%)');
+  console.log('  🔐 JWT anomalies           (missing, expired, wrong issuer, no roles)');
+  console.log('  🌐 IP reputation           (bad actors, scanners, Tor exits)');
+  console.log('  ⚡ Endpoint frequency       (payment floods, admin scraping)');
+  console.log('  🚫 Role-based violations   (privilege escalation, unauthorized access)');
+  console.log('');
+  console.log('\x1b[90m  Target: ' + GATEWAY_URL + '\x1b[0m');
+  console.log('\x1b[90m  Press Ctrl+C to stop.\x1b[0m');
+  console.log('');
+  console.log('\x1b[90m  IP                | USER              | METHOD ENDPOINT                 | RESULT   | SCENARIO\x1b[0m');
+  console.log('\x1b[90m  ─────────────────────────────────────────────────────────────────────────────────────────────────\x1b[0m');
 
   while (true) {
-    await fireRequest();
-    // Delay between 300ms and 1500ms
-    await sleep(Math.random() * 1200 + 300);
+    const scenario = pickScenario();
+    await fireScenario(scenario);
+    // Random delay 200ms–1200ms for realistic traffic pattern
+    await sleep(Math.random() * 1000 + 200);
   }
 }
 
