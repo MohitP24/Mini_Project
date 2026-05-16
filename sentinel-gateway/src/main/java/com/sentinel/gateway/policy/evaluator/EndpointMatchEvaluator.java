@@ -23,11 +23,12 @@ public class EndpointMatchEvaluator implements ConditionEvaluator {
         boolean match = false;
         if (condition.getValue() instanceof String) {
             String pattern = (String) condition.getValue();
-            match = endpoint.matches(pattern.replace("**", ".*"));
+            String regex = pattern.replace("**", ".*").replace("*", ".*").replace("..*", ".*"); // handle both safely
+            match = endpoint.matches(regex);
         } else if (condition.getValue() instanceof List) {
             @SuppressWarnings("unchecked")
             List<String> patterns = (List<String>) condition.getValue();
-            match = patterns.stream().anyMatch(p -> endpoint.matches(p.replace("**", ".*")));
+            match = patterns.stream().anyMatch(p -> endpoint.matches(p.replace("**", ".*").replace("*", ".*").replace("..*", ".*")));
         }
 
         if (condition.getOperator() == Operator.MATCHES) {

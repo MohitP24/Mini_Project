@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const GATEWAY_URL = 'http://localhost:8080';
+const GATEWAY_URL = 'http://127.0.0.1:8080';
 const PRIVATE_KEY_PATH = path.resolve(__dirname, '../../secrets/sentinel_private_key.pem');
 
 // Load private key for signing JWTs
@@ -269,31 +269,108 @@ async function fireScenario(scenario) {
 // MAIN LOOP
 // ═══════════════════════════════════════════════════════
 
+import readline from 'readline';
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
+
 async function runDemo() {
+  console.clear();
   console.log('');
   console.log('\x1b[36m╔══════════════════════════════════════════════════════════════════╗\x1b[0m');
   console.log('\x1b[36m║     🛡️  SENTINEL — Advanced Security Traffic Simulator  🛡️      ║\x1b[0m');
   console.log('\x1b[36m╚══════════════════════════════════════════════════════════════════╝\x1b[0m');
   console.log('');
-  console.log('\x1b[90m  Anomaly Categories Covered:\x1b[0m');
-  console.log('  ✅ Normal baseline traffic  (weighted 45%)');
-  console.log('  🔐 JWT anomalies           (missing, expired, wrong issuer, no roles)');
-  console.log('  🌐 IP reputation           (bad actors, scanners, Tor exits)');
-  console.log('  ⚡ Endpoint frequency       (payment floods, admin scraping)');
-  console.log('  🚫 Role-based violations   (privilege escalation, unauthorized access)');
-  console.log('');
   console.log('\x1b[90m  Target: ' + GATEWAY_URL + '\x1b[0m');
-  console.log('\x1b[90m  Press Ctrl+C to stop.\x1b[0m');
+  console.log('');
+  console.log('\x1b[33m  🎮  Interactive Menu:\x1b[0m');
+  console.log('  [Enter]       - Fire a random scenario');
+  console.log('  [1-13]        - Fire a specific scenario (e.g., "1" for Normal Bob, "9" for Tor)');
+  console.log('  [auto]        - Switch to automated continuous mode');
+  console.log('  [list]        - List all available scenarios');
+  console.log('  [exit]        - Stop the generator');
   console.log('');
   console.log('\x1b[90m  IP                | USER              | METHOD ENDPOINT                 | RESULT   | SCENARIO\x1b[0m');
   console.log('\x1b[90m  ─────────────────────────────────────────────────────────────────────────────────────────────────\x1b[0m');
 
-  while (true) {
+  let mode = 'manual';
+
+  const listScenarios = () => {
+    console.log('\n\x1b[36mAvailable Scenarios:\x1b[0m');
+    SCENARIOS.forEach((s, i) => console.log(`  ${(i + 1).toString().padStart(2)}. ${s.name}`));
+    console.log('');
+  };
+
+  const handleInput = async (input) => {
+    const cmd = input.trim().toLowerCase();
+
+    if (cmd === 'exit' || cmd === 'quit') {
+      console.log('\x1b[31mStopping Sentinel Generator...\x1b[0m');
+      process.exit(0);
+    }
+
+    if (cmd === 'list') {
+      listScenarios();
+      prompt();
+      return;
+    }
+
+    if (cmd === 'auto') {
+      mode = 'auto';
+      console.log('\x1b[32m>>> Switched to AUTO mode. Type "manual" to stop.\x1b[0m');
+      autoLoop();
+      return;
+    }
+
+    if (cmd === 'manual') {
+      mode = 'manual';
+      console.log('\x1b[33m>>> Switched to MANUAL mode.\x1b[0m');
+      prompt();
+      return;
+    }
+
+    let scenario;
+    const num = parseInt(cmd);
+    if (!isNaN(num) && num >= 1 && num <= SCENARIOS.length) {
+      scenario = SCENARIOS[num - 1];
+    } else {
+      scenario = pickScenario();
+    }
+
+    await fireScenario(scenario);
+    if (mode === 'manual') prompt();
+  };
+
+  const prompt = () => {
+    if (mode === 'manual') {
+      rl.question('\x1b[33mSentinel > \x1b[0m', handleInput);
+    }
+  };
+
+  const autoLoop = async () => {
+    if (mode !== 'auto') return;
+    
+    // Check if user typed "manual" while in auto loop
+    // Note: In Node.js, rl.on('line') is better for this but for simplicity here:
     const scenario = pickScenario();
     await fireScenario(scenario);
-    // Random delay 200ms–1200ms for realistic traffic pattern
-    await sleep(Math.random() * 1000 + 200);
-  }
+    
+    // Check for input during auto loop
+    setTimeout(autoLoop, Math.random() * 1000 + 500);
+  };
+
+  // Listen for 'manual' command during auto mode
+  rl.on('line', (line) => {
+    if (mode === 'auto' && line.trim().toLowerCase() === 'manual') {
+      mode = 'manual';
+      console.log('\x1b[33m>>> Switched to MANUAL mode.\x1b[0m');
+      prompt();
+    }
+  });
+
+  prompt();
 }
 
 runDemo();
