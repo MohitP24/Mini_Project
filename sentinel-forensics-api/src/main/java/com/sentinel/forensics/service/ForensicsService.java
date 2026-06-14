@@ -150,15 +150,36 @@ public class ForensicsService {
     }
 
     public List<Map<String, Object>> getTrends() {
-        // Return last 7 hours of data (mocked grouping for simplicity in this demo)
         List<Map<String, Object>> trends = new ArrayList<>();
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime latestTime = eventRepository.findLatestEventTime();
+        if (latestTime == null) {
+            latestTime = OffsetDateTime.now();
+        }
+        
+        OffsetDateTime startTime = latestTime.minusHours(6).withMinute(0).withSecond(0).withNano(0);
+        List<EventRecord> events = eventRepository.findEventsInTimeRange(startTime, latestTime);
+        
         for (int i = 6; i >= 0; i--) {
-            OffsetDateTime hour = now.minusHours(i);
+            OffsetDateTime hourStart = latestTime.minusHours(i).withMinute(0).withSecond(0).withNano(0);
+            OffsetDateTime hourEnd = hourStart.plusHours(1);
+            
+            List<EventRecord> hourEvents = events.stream()
+                .filter(e -> e.getCreatedAt() != null && 
+                             !e.getCreatedAt().isBefore(hourStart) && 
+                             e.getCreatedAt().isBefore(hourEnd))
+                .collect(Collectors.toList());
+                
+            long count = hourEvents.size();
+            double avgRisk = hourEvents.stream()
+                .filter(e -> e.getRiskScore() != null)
+                .mapToDouble(EventRecord::getRiskScore)
+                .average()
+                .orElse(0.0);
+                
             Map<String, Object> point = new HashMap<>();
-            point.put("time", hour.getHour() + ":00");
-            point.put("events", 400 + (int)(Math.random() * 400));
-            point.put("risk", 0.1 + Math.random() * 0.4);
+            point.put("time", hourStart.getHour() + ":00");
+            point.put("events", count);
+            point.put("risk", avgRisk);
             trends.add(point);
         }
         return trends;

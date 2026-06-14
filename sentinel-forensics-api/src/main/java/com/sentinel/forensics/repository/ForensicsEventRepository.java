@@ -22,4 +22,7 @@ public interface ForensicsEventRepository extends JpaRepository<EventRecord, UUI
 
     @Query("SELECT DISTINCT e.sessionId FROM EventRecord e ORDER BY e.sessionId DESC")
     List<UUID> findRecentSessionIds(org.springframework.data.domain.Pageable pageable);
+
+    @Query("SELECT MAX(e.createdAt) FROM EventRecord e")
+    OffsetDateTime findLatestEventTime();
 }
