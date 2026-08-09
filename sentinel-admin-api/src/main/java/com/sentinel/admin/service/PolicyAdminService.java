@@ -25,8 +25,8 @@ public class PolicyAdminService {
         this.objectMapper = objectMapper;
     }
 
-    public List<PolicyRule> getAllActivePolicies() {
-        return repository.findByActiveTrueOrderByPriorityDesc();
+    public List<PolicyRule> getAllPolicies() {
+        return repository.findAll(org.springframework.data.domain.Sort.by("priority").descending());
     }
 
     public Optional<PolicyRule> getPolicy(String id) {
@@ -35,8 +35,12 @@ public class PolicyAdminService {
 
     @Transactional
     public PolicyRule createOrUpdatePolicy(PolicyRule rule) {
-        // If updating, version bump handled by DB trigger? No, trigger handles history.
-        // We should explicitly set updated_at and version bump here.
+        if (rule.getRuleId() == null || rule.getRuleId().isEmpty()) {
+            rule.setRuleId("POL-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        }
+        if (rule.getActive() == null) rule.setActive(true);
+        if (rule.getPriority() == null) rule.setPriority(100);
+
         Optional<PolicyRule> existing = repository.findById(rule.getRuleId());
         if (existing.isPresent()) {
             rule.setVersion(existing.get().getVersion() + 1);
@@ -67,13 +71,14 @@ public class PolicyAdminService {
 
     public SimulationResult simulateProposedPolicy(String conditionsJson, String scope) {
         // 1. Parse the draft conditions using production-grade parser
-        List<com.sentinel.common.policy.Condition> draftConditions;
+        List<com.sentinel.common.policy.Condition> draftConditionsParsed;
         try {
-            draftConditions = objectMapper.readValue(conditionsJson, 
+            draftConditionsParsed = objectMapper.readValue(conditionsJson, 
                 new com.fasterxml.jackson.core.type.TypeReference<List<com.sentinel.common.policy.Condition>>() {});
         } catch (Exception e) {
-            draftConditions = java.util.Collections.emptyList();
+            draftConditionsParsed = java.util.Collections.emptyList();
         }
+        final List<com.sentinel.common.policy.Condition> draftConditions = draftConditionsParsed;
 
         // 2. Fetch REAL historical data from the events table
         String sql = "SELECT event_id, endpoint, source_ip, decision, roles, risk_score FROM events " +

@@ -5,7 +5,7 @@ spring:
   application:
     name: sentinel-gateway
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:sentinel}
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:sentinel}?stringtype=unspecified
     username: ${POSTGRES_USER:sentinel_app}
     password: ${POSTGRES_PASSWORD:sentinel}
     driver-class-name: org.postgresql.Driver
@@ -18,6 +18,21 @@ spring:
     hibernate:
       ddl-auto: validate
     show-sql: false
+  cloud:
+    gateway:
+      routes:
+        - id: mock-payment-service
+          uri: ${MOCK_PAYMENT_URL:http://localhost:9001}
+          predicates:
+            - Path=/api/payments/**
+        - id: mock-user-service
+          uri: ${MOCK_USER_URL:http://localhost:9002}
+          predicates:
+            - Path=/api/users/**
+        - id: mock-admin-service
+          uri: ${MOCK_ADMIN_URL:http://localhost:9003}
+          predicates:
+            - Path=/api/admin/**
 
 sentinel:
   jwt:

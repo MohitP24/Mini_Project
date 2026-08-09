@@ -22,14 +22,21 @@ public class RequestReceiverFilter implements GlobalFilter, Ordered {
         long startTime = System.currentTimeMillis() * 1_000_000L + (System.nanoTime() % 1_000_000L);
         exchange.getAttributes().put(START_TIME_ATTR, startTime);
 
-        String traceId = exchange.getRequest().getHeaders().getFirst(Headers.X_TRACE_ID);
-        if (traceId == null || traceId.isEmpty()) {
-            traceId = UUID.randomUUID().toString();
+        String traceIdHeader = exchange.getRequest().getHeaders().getFirst(Headers.X_TRACE_ID);
+        UUID traceId;
+        if (traceIdHeader == null || traceIdHeader.isEmpty()) {
+            traceId = UUID.randomUUID();
+        } else {
+            try {
+                traceId = UUID.fromString(traceIdHeader);
+            } catch (IllegalArgumentException ex) {
+                traceId = UUID.randomUUID();
+            }
         }
         exchange.getAttributes().put(TRACE_ID_ATTR, traceId);
 
         ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                .header(Headers.X_TRACE_ID, traceId)
+                .header(Headers.X_TRACE_ID, traceId.toString())
                 .build();
 
         return chain.filter(exchange.mutate().request(mutatedRequest).build());

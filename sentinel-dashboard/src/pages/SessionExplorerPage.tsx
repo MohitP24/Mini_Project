@@ -12,6 +12,7 @@ import {
 import { forensicsClient } from '../api/client';
 
 const SessionCard = ({ session }: any) => {
+  const [expanded, setExpanded] = React.useState(false);
   const avgRisk = session.avgRiskScore || 0;
   const riskColor = avgRisk >= 0.7 ? 'bg-risk-high' : avgRisk >= 0.3 ? 'bg-risk-medium' : 'bg-risk-low';
   
@@ -66,10 +67,22 @@ const SessionCard = ({ session }: any) => {
             <Clock className="w-3 h-3 mr-1" />
             <span>Last seen {new Date(session.lastActivity).toLocaleTimeString()}</span>
           </div>
-          <button className="flex items-center text-sentinel-teal hover:text-white transition-colors font-bold uppercase tracking-widest">
-            Inspect <ChevronRight className="w-3 h-3 ml-1" />
+          <button 
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center text-sentinel-teal hover:text-white transition-colors font-bold uppercase tracking-widest">
+            {expanded ? 'Close' : 'Inspect'} <ChevronRight className={`w-3 h-3 ml-1 transition-transform ${expanded ? 'rotate-90' : ''}`} />
           </button>
         </div>
+        {expanded && (
+          <div className="mt-4 pt-4 border-t border-white/10 text-xs text-slate-400 space-y-2 animate-in fade-in duration-300">
+            <p><strong className="text-white">Full Session ID:</strong> {session.sessionId}</p>
+            <p><strong className="text-white">Associated IPs:</strong> {session.associatedIps?.join(', ') || 'N/A'}</p>
+            <p><strong className="text-white">Recent Violations:</strong> {session.violationsCount || 0}</p>
+            <button className="mt-2 w-full py-2 bg-white/5 hover:bg-white/10 text-white rounded transition-colors shadow-sm">
+              View Complete Audit Trail
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

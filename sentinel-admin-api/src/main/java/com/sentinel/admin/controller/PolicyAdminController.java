@@ -19,8 +19,8 @@ public class PolicyAdminController {
     }
 
     @GetMapping
-    public List<PolicyRule> getActivePolicies() {
-        return policyAdminService.getAllActivePolicies();
+    public List<PolicyRule> getAllPolicies() {
+        return policyAdminService.getAllPolicies();
     }
 
     @GetMapping("/{id}")

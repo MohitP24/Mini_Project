@@ -26,6 +26,23 @@ export const PolicyAdminPage = () => {
     }
   });
 
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [newPolicy, setNewPolicy] = React.useState({ name: '', description: '', conditions: '[]', decision: 'ALLOW' });
+  
+  const createMutation = useMutation({
+    mutationFn: async (policy: any) => {
+      const resp = await adminClient.post('/policies', policy);
+      return resp;
+    },
+    onSuccess: () => {
+      toast.success('Policy created successfully');
+      setIsModalOpen(false);
+      setNewPolicy({ name: '', description: '', conditions: '[]', decision: 'ALLOW' });
+      queryClient.invalidateQueries({ queryKey: ['policies'] });
+    },
+    onError: () => toast.error('Failed to create policy')
+  });
+
   const toggleMutation = useMutation({
     mutationFn: async (policy: any) => {
       // In real implementation, this would be a PATCH call
@@ -45,6 +62,10 @@ export const PolicyAdminPage = () => {
     }
   });
 
+  const handleCreatePolicy = () => {
+    setIsModalOpen(true);
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
@@ -52,7 +73,9 @@ export const PolicyAdminPage = () => {
           <h2 className="text-3xl font-bold text-white tracking-tight">Policy Administration</h2>
           <p className="text-slate-400 mt-1">Manage zero-trust ABAC rules and snapshot versions.</p>
         </div>
-        <button className="flex items-center px-6 py-3 bg-sentinel-teal text-white rounded-xl text-sm font-bold shadow-lg shadow-sentinel-teal/20 hover:bg-sentinel-teal/90 transition-all">
+        <button 
+          onClick={handleCreatePolicy}
+          className="flex items-center px-6 py-3 bg-sentinel-teal text-white rounded-xl text-sm font-bold shadow-lg shadow-sentinel-teal/20 hover:bg-sentinel-teal/90 transition-all">
           <Plus className="w-4 h-4 mr-2" />
           Create New Policy
         </button>
@@ -128,6 +151,47 @@ export const PolicyAdminPage = () => {
           </div>
         ))}
       </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-white/10 p-6 rounded-2xl w-full max-w-lg shadow-2xl space-y-4">
+            <h3 className="text-xl font-bold text-white">Create New Policy</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">Policy Name</label>
+                <input type="text" className="w-full bg-slate-950 border border-white/10 rounded-lg p-2 text-white focus:outline-none focus:border-sentinel-teal" value={newPolicy.name} onChange={e => setNewPolicy({...newPolicy, name: e.target.value})} placeholder="e.g. Block External IPs" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">Description</label>
+                <input type="text" className="w-full bg-slate-950 border border-white/10 rounded-lg p-2 text-white focus:outline-none focus:border-sentinel-teal" value={newPolicy.description} onChange={e => setNewPolicy({...newPolicy, description: e.target.value})} placeholder="Blocks requests from outside the VPN" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">Conditions (JSON)</label>
+                <textarea className="w-full bg-slate-950 border border-white/10 rounded-lg p-2 text-white h-24 font-mono text-xs focus:outline-none focus:border-sentinel-teal" value={newPolicy.conditions} onChange={e => setNewPolicy({...newPolicy, conditions: e.target.value})} placeholder='[{"type":"ip","value":"192.168.0.0/24"}]' />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">Decision</label>
+                <select className="w-full bg-slate-950 border border-white/10 rounded-lg p-2 text-white focus:outline-none focus:border-sentinel-teal" value={newPolicy.decision} onChange={e => setNewPolicy({...newPolicy, decision: e.target.value})}>
+                  <option value="ALLOW">ALLOW</option>
+                  <option value="DENY">DENY</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4 border-t border-white/10">
+              <button className="px-4 py-2 text-slate-400 hover:text-white transition-colors" onClick={() => setIsModalOpen(false)}>Cancel</button>
+              <button 
+                className="px-4 py-2 bg-sentinel-teal text-white rounded-lg font-bold shadow-lg shadow-sentinel-teal/20 hover:bg-sentinel-teal/90 transition-all disabled:opacity-50" 
+                onClick={() => createMutation.mutate(newPolicy)}
+                disabled={createMutation.isPending}
+              >
+                {createMutation.isPending ? 'Saving...' : 'Save Policy'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

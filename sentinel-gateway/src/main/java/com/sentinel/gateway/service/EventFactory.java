@@ -32,8 +32,7 @@ public class EventFactory {
             String riskSignalsJson,
             Decision decision,
             String requestContextJson,
-            String bodyHash
-    ) {
+            String bodyHash) {
         EventRecord event = EventRecord.builder()
                 .timestampNs(TimestampUtil.getNowNs())
                 .eventType(eventType)
@@ -55,7 +54,7 @@ public class EventFactory {
                 .gatewayVersion(gatewayVersion)
                 .createdAt(OffsetDateTime.now())
                 .build();
-                
+
         event.setEventHash(EventHashUtil.computeHash(event));
         return event;
     }
